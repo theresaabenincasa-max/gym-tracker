@@ -102,6 +102,8 @@
   .hist-item .d{color:var(--sub);}
   .hist-item .w{font-weight:600;text-align:right;}
   .empty{color:var(--sub);font-size:13px;text-align:center;padding:30px 0;}
+  .backup-row{display:flex;gap:8px;margin-top:24px;}
+  .backup-btn{flex:1;background:var(--card2);border:1px solid var(--line);color:var(--sub);border-radius:10px;padding:10px;font-size:12.5px;}
 </style>
 </head>
 <body>
@@ -117,6 +119,10 @@
 <main id="historyView" class="hidden">
   <select class="ex-select" id="exSelect"></select>
   <div id="historyBody"></div>
+  <div class="backup-row">
+    <button id="copyDataBtn" class="backup-btn">Copy My Data</button>
+    <button id="pasteDataBtn" class="backup-btn">Paste My Data</button>
+  </div>
 </main>
 
 <nav class="tabbar">
@@ -670,6 +676,45 @@
 
   document.getElementById("tabToday").addEventListener("click", function(){ showTab("today"); });
   document.getElementById("tabHistory").addEventListener("click", function(){ showTab("history"); });
+
+  document.getElementById("copyDataBtn").addEventListener("click", function(){
+    var btn = this;
+    var raw = JSON.stringify(data);
+    function done(ok){
+      btn.textContent = ok ? "Copied!" : "Copy failed — try again";
+      setTimeout(function(){ btn.textContent = "Copy My Data"; }, 1800);
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(raw).then(function(){ done(true); }).catch(function(){ done(false); });
+    } else {
+      window.prompt("Copy this text:", raw);
+      done(true);
+    }
+  });
+
+  document.getElementById("pasteDataBtn").addEventListener("click", function(){
+    var pasted = window.prompt("Paste your backup data here:", "");
+    if(!pasted) return;
+    var incoming;
+    try{ incoming = JSON.parse(pasted); }catch(e){
+      alert("That didn't look like valid backup data.");
+      return;
+    }
+    if(!incoming || !incoming.sessions){
+      alert("That didn't look like valid backup data.");
+      return;
+    }
+    var added = 0;
+    Object.keys(incoming.sessions).forEach(function(k){
+      if(!data.sessions[k]){
+        data.sessions[k] = incoming.sessions[k];
+        added++;
+      }
+    });
+    saveData();
+    alert("Imported "+added+" day(s) of history.");
+    if(currentTab==="today"){ renderToday(); } else { renderHistorySelect(); renderHistoryBody(); }
+  });
 
   showTab("today");
 
