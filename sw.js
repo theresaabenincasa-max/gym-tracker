@@ -1,4 +1,4 @@
-var CACHE_NAME = "gym-tracker-v10";
+var CACHE_NAME = "gym-tracker-v11";
 var ASSETS = ["./", "./index.html"];
 
 self.addEventListener("install", function(event){

@@ -199,49 +199,61 @@
     return null;
   }
 
+  function makeDefaultSet(ex, last, idx){
+    if(ex.type==="time"){
+      return { done:false };
+    }
+    if(ex.type==="count"){
+      var cv = (last && last.sets && last.sets[idx] && last.sets[idx].count!=null) ? last.sets[idx].count : (ex.defaultValue!=null ? ex.defaultValue : null);
+      return { count:cv, done:false };
+    }
+    if(ex.type==="weight_time"){
+      var lw = (last && last.sets && last.sets[idx]) ? last.sets[idx].weight : null;
+      var lt = (last && last.sets && last.sets[idx] && last.sets[idx].time!=null) ? last.sets[idx].time : (ex.defaultTime!=null ? ex.defaultTime : null);
+      return { weight:lw, time:lt, done:false };
+    }
+    var w = (last && last.sets && last.sets[idx]) ? last.sets[idx].weight : null;
+    var st = { weight:w, done:false };
+    if(ex.hasSeatSetting){
+      st.seat = (last && last.sets && last.sets[idx] && last.sets[idx].seat!=null) ? last.sets[idx].seat : null;
+    }
+    return st;
+  }
+
   function ensureTodaySession(){
     var tk = todayKey();
     if(!data.sessions[tk]) data.sessions[tk] = { exercises:{} };
     var todaySess = data.sessions[tk];
     EXERCISES.forEach(function(ex){
-      if(todaySess.exercises[ex.id]) return;
       var last = findLastExerciseState(ex.id);
+      var existing = todaySess.exercises[ex.id];
+
+      if(existing){
+        // top up if the exercise's set count changed since this day's entry was created
+        if(existing.sets){
+          while(existing.sets.length < ex.sets){
+            existing.sets.push(makeDefaultSet(ex, last, existing.sets.length));
+          }
+        }
+        return;
+      }
+
       if(ex.type==="cardio"){
         todaySess.exercises[ex.id] = { done:false, minutes: last ? last.minutes : ex.defaultMinutes };
-      } else if(ex.type==="time"){
-        var sets=[];
-        for(var i=0;i<ex.sets;i++) sets.push({done:false});
-        todaySess.exercises[ex.id] = { sets: sets };
-      } else if(ex.type==="count"){
-        var sets3=[];
-        for(var k=0;k<ex.sets;k++){
-          var cv = (last && last.sets && last.sets[k] && last.sets[k].count!=null) ? last.sets[k].count : (ex.defaultValue!=null ? ex.defaultValue : null);
-          sets3.push({ count:cv, done:false });
-        }
-        todaySess.exercises[ex.id] = { sets: sets3 };
-      } else if(ex.type==="weight_time"){
-        var sets4=[];
-        for(var m=0;m<ex.sets;m++){
-          var lw = (last && last.sets && last.sets[m]) ? last.sets[m].weight : null;
-          var lt = (last && last.sets && last.sets[m] && last.sets[m].time!=null) ? last.sets[m].time : (ex.defaultTime!=null ? ex.defaultTime : null);
-          sets4.push({ weight:lw, time:lt, done:false });
-        }
-        todaySess.exercises[ex.id] = { sets: sets4, raiseNext:false, raiseReminder: !!(last && last.raiseNext) };
-      } else {
-        var sets2=[];
-        for(var j=0;j<ex.sets;j++){
-          var w = (last && last.sets && last.sets[j]) ? last.sets[j].weight : null;
-          var st2 = { weight:w, done:false };
-          if(ex.hasSeatSetting){
-            st2.seat = (last && last.sets && last.sets[j] && last.sets[j].seat!=null) ? last.sets[j].seat : null;
-          }
-          sets2.push(st2);
-        }
-        var state = { sets: sets2, raiseNext:false, raiseReminder: !!(last && last.raiseNext) };
+        return;
+      }
+
+      var sets = [];
+      for(var idx=0; idx<ex.sets; idx++) sets.push(makeDefaultSet(ex, last, idx));
+
+      if(ex.type==="weight" || ex.type==="weight_time"){
+        var state = { sets: sets, raiseNext:false, raiseReminder: !!(last && last.raiseNext) };
         if(ex.hasMachineToggle){
           state.usingMachine = last ? !!last.usingMachine : false;
         }
         todaySess.exercises[ex.id] = state;
+      } else {
+        todaySess.exercises[ex.id] = { sets: sets };
       }
     });
     saveData();
