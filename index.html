@@ -66,8 +66,9 @@
   }
   .check-btn.done{background:var(--accent);border-color:var(--accent);color:#0c1a12;}
   .streak-note{font-size:11.5px;color:var(--accent);margin-top:2px;opacity:.85;}
-  .machine-toggle{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;background:var(--card2);border-radius:10px;padding:8px 10px;}
-  .machine-toggle span{font-size:12.5px;color:var(--sub);}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;background:var(--card2);border-radius:10px;padding:8px 10px;}
+  .toggle-row span{font-size:12.5px;color:var(--sub);}
+  .raise-reminder{background:rgba(61,220,132,.12);border:1px solid var(--accent-dim);color:var(--accent);font-size:12px;border-radius:8px;padding:7px 10px;margin-bottom:10px;}
   .switch{width:40px;height:22px;border-radius:11px;background:var(--line);position:relative;flex-shrink:0;}
   .switch.on{background:var(--accent-dim);}
   .switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#8b93a1;transition:transform .15s,background .15s;}
@@ -140,14 +141,14 @@
     { id:"bike", name:"Bike Warm-up", sub:"10 min, steady pace", type:"cardio", defaultMinutes:10 },
     { id:"bwSquats", name:"Bodyweight Squats", sub:"Warm-up · 2 sets x 10 reps", type:"time", sets:2, note:"10 reps" },
     { id:"gluteBridges", name:"Glute Bridges", sub:"Warm-up · 2 sets x 15 reps", type:"time", sets:2, note:"15 reps" },
-    { id:"bandedLateralWalks", name:"Banded Lateral Walks", sub:"Warm-up · 2 sets, steps each direction", type:"count", sets:2, unit:"steps", defaultValue:10 },
-    { id:"dlHamCurl", name:"DL Hamstring Curls", sub:"Heavy · 3 sets x 6-8 reps", type:"weight", sets:3 },
-    { id:"legPress", name:"Single Leg Press", sub:"Heavy · 3 sets x 6-8 reps", type:"weight", sets:3 },
-    { id:"quadIso", name:"Single Leg Quad Extension (isometric)", sub:"5 sets @ 90° angle", type:"count", sets:5, unit:"sec", defaultValue:30 },
+    { id:"bandedLateralWalks", name:"Banded Lateral Walks", sub:"Warm-up · 2 sets, steps each direction", type:"count", sets:2, unit:"steps", defaultValue:10, noStreak:true },
+    { id:"legPress", name:"Single Leg Press", sub:"Heavy · 3 sets x 6-8 reps", type:"weight", sets:3, hasSeatSetting:true },
+    { id:"dlHamCurl", name:"DL Hamstring Curls", sub:"Heavy · 3 sets x 6-8 reps", type:"weight", sets:3, hasSeatSetting:true },
+    { id:"quadIso", name:"Single Leg Quad Extension (isometric)", sub:"5 sets @ 90° angle", type:"count", sets:5, unit:"sec", defaultValue:30, noStreak:true },
     { id:"splitSquat", name:"Split Squat", sub:"3 sets x 6-8 reps · add weight when ready", type:"weight", sets:3, optionalWeight:true },
     { id:"wallSit", name:"Wall Sit w/ Step Under (R)", sub:"5 sets", type:"weight_time", sets:5, defaultTime:30 },
     { id:"hipThrust", name:"Hip Thrust w/ Weight", sub:"3 sets x 6-8 reps", type:"weight", sets:3 },
-    { id:"singleLegExt", name:"Single Leg Extension", sub:"Ankle weight → machine when ready · 3 sets x 6-8 reps", type:"weight", sets:3, hasMachineToggle:true },
+    { id:"singleLegExt", name:"Single Leg Extension", sub:"Ankle weight → machine when ready · 6 sets x 6-8 reps", type:"weight", sets:6, hasMachineToggle:true, hasSeatSetting:true },
     { id:"abCrunchMachine", name:"Ab Crunch Machine", sub:"3 sets x 8 reps", type:"weight", sets:3 },
     { id:"russianTwists", name:"Russian Twists", sub:"3 sets x 6-8 reps each side", type:"weight", sets:3 },
     { id:"hangingLegRaises", name:"Hanging Leg Raises", sub:"3 sets · bodyweight, track your reps", type:"count", sets:3, unit:"reps" }
@@ -225,14 +226,18 @@
           var lt = (last && last.sets && last.sets[m] && last.sets[m].time!=null) ? last.sets[m].time : (ex.defaultTime!=null ? ex.defaultTime : null);
           sets4.push({ weight:lw, time:lt, done:false });
         }
-        todaySess.exercises[ex.id] = { sets: sets4 };
+        todaySess.exercises[ex.id] = { sets: sets4, raiseNext:false, raiseReminder: !!(last && last.raiseNext) };
       } else {
         var sets2=[];
         for(var j=0;j<ex.sets;j++){
           var w = (last && last.sets && last.sets[j]) ? last.sets[j].weight : null;
-          sets2.push({ weight:w, done:false });
+          var st2 = { weight:w, done:false };
+          if(ex.hasSeatSetting){
+            st2.seat = (last && last.sets && last.sets[j] && last.sets[j].seat!=null) ? last.sets[j].seat : null;
+          }
+          sets2.push(st2);
         }
-        var state = { sets: sets2 };
+        var state = { sets: sets2, raiseNext:false, raiseReminder: !!(last && last.raiseNext) };
         if(ex.hasMachineToggle){
           state.usingMachine = last ? !!last.usingMachine : false;
         }
@@ -253,9 +258,9 @@
     for(var i=0;i<keys.length;i++){
       var sess = data.sessions[keys[i]];
       var ex = sess.exercises && sess.exercises[exId];
-      if(!ex || !ex.sets || !ex.sets[setIdx]) break;
+      if(!ex || !ex.sets || !ex.sets[setIdx] || !ex.sets[setIdx].done) continue;
       var v = ex.sets[setIdx][field];
-      if(v===null || v===undefined || v==="") break;
+      if(v===null || v===undefined || v==="") continue;
       if(parseFloat(v) !== cw) break;
       count++;
     }
@@ -358,7 +363,7 @@
         html += '<div class="sets">';
         for(var c=0;c<ex.sets;c++){
           var cs = state.sets[c];
-          var cStreak = sameValueStreak(ex.id, c, cs.count, "count");
+          var cStreak = ex.noStreak ? 0 : sameValueStreak(ex.id, c, cs.count, "count");
           html += '<div class="set-row">';
           html += '<div class="set-label">Set '+(c+1)+'</div>';
           html += '<div class="weight-input-wrap">';
@@ -373,6 +378,13 @@
         }
         html += '</div>';
       } else if(ex.type==="weight_time"){
+        if(state.raiseReminder){
+          html += '<div class="raise-reminder">⬆️ Marked to raise weight last time</div>';
+        }
+        html += '<div class="toggle-row" data-ex="'+ex.id+'" data-role="toggle" data-field="raiseNext">';
+        html += '<span>Raise weight next time?</span>';
+        html += '<div class="switch'+(state.raiseNext?' on':'')+'"></div>';
+        html += '</div>';
         html += '<div class="sets">';
         for(var d=0;d<ex.sets;d++){
           var ds = state.sets[d];
@@ -396,21 +408,35 @@
         html += '</div>';
       } else { // weight
         if(ex.hasMachineToggle){
-          html += '<div class="machine-toggle" data-ex="'+ex.id+'" data-role="machine-toggle">';
+          html += '<div class="toggle-row" data-ex="'+ex.id+'" data-role="toggle" data-field="usingMachine">';
           html += '<span>'+(state.usingMachine ? "Using machine" : "Using ankle weight")+'</span>';
           html += '<div class="switch'+(state.usingMachine?' on':'')+'"></div>';
           html += '</div>';
         }
+        if(state.raiseReminder){
+          html += '<div class="raise-reminder">⬆️ Marked to raise weight last time</div>';
+        }
+        html += '<div class="toggle-row" data-ex="'+ex.id+'" data-role="toggle" data-field="raiseNext">';
+        html += '<span>Raise weight next time?</span>';
+        html += '<div class="switch'+(state.raiseNext?' on':'')+'"></div>';
+        html += '</div>';
         html += '<div class="sets">';
+        var showSeat = ex.hasSeatSetting && (!ex.hasMachineToggle || state.usingMachine);
         for(var j=0;j<ex.sets;j++){
           var sw = state.sets[j];
           var streakCount = sameValueStreak(ex.id, j, sw.weight, "weight");
-          html += '<div class="set-row">';
-          html += '<div class="set-label">Set '+(j+1)+'</div>';
-          html += '<div class="weight-input-wrap">';
+          html += '<div class="set-row'+(showSeat?' dual-row':'')+'">';
+          html += '<div class="set-label">'+(showSeat?'S'+(j+1):'Set '+(j+1))+'</div>';
+          html += '<div class="weight-input-wrap'+(showSeat?' dual':'')+'">';
           html += '<input class="weight-input" type="number" inputmode="decimal" placeholder="'+(ex.optionalWeight?'bodyweight':'0')+'" data-ex="'+ex.id+'" data-role="weight" data-idx="'+j+'" value="'+(sw.weight!=null?sw.weight:"")+'">';
           html += '<span class="unit">lbs</span>';
           html += '</div>';
+          if(showSeat){
+            html += '<div class="weight-input-wrap dual">';
+            html += '<input class="weight-input" type="text" placeholder="—" data-ex="'+ex.id+'" data-role="seat" data-idx="'+j+'" value="'+(sw.seat!=null?sw.seat:"")+'">';
+            html += '<span class="unit">seat</span>';
+            html += '</div>';
+          }
           html += '<div class="check-btn'+(sw.done?' done':'')+'" data-ex="'+ex.id+'" data-role="set-check" data-idx="'+j+'">✓</div>';
           html += '</div>';
           if(streakCount>0){
@@ -509,11 +535,24 @@
       });
     });
 
-    view.querySelectorAll('[data-role="machine-toggle"]').forEach(function(row){
+    view.querySelectorAll('[data-role="toggle"]').forEach(function(row){
       row.addEventListener("click", function(){
         var exId = this.getAttribute("data-ex");
+        var field = this.getAttribute("data-field");
         var sess = data.sessions[todayKey()];
-        sess.exercises[exId].usingMachine = !sess.exercises[exId].usingMachine;
+        sess.exercises[exId][field] = !sess.exercises[exId][field];
+        saveData();
+        renderToday();
+      });
+    });
+
+    view.querySelectorAll('[data-role="seat"]').forEach(function(input){
+      input.addEventListener("change", function(){
+        var exId = this.getAttribute("data-ex");
+        var idx = parseInt(this.getAttribute("data-idx"),10);
+        var val = this.value === "" ? null : this.value;
+        var sess = data.sessions[todayKey()];
+        sess.exercises[exId].sets[idx].seat = val;
         saveData();
         renderToday();
       });
