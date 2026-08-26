@@ -199,6 +199,19 @@
     return null;
   }
 
+  // like findLastExerciseState, but skips days where this exercise wasn't actually
+  // performed (e.g. the app was just opened on a rest day) — used for anything that
+  // should persist across rest days rather than decay the day after it's set
+  function findLastDoneExerciseState(exId){
+    var keys = sortedDateKeys(true).reverse();
+    for(var i=0;i<keys.length;i++){
+      var sess = data.sessions[keys[i]];
+      var ex = sess.exercises && sess.exercises[exId];
+      if(ex && ex.sets && ex.sets.some(function(s){ return s.done; })) return ex;
+    }
+    return null;
+  }
+
   function makeDefaultSet(ex, last, idx){
     if(ex.type==="time"){
       return { done:false };
@@ -247,7 +260,8 @@
       for(var idx=0; idx<ex.sets; idx++) sets.push(makeDefaultSet(ex, last, idx));
 
       if(ex.type==="weight" || ex.type==="weight_time"){
-        var state = { sets: sets, raiseNext:false, raiseReminder: !!(last && last.raiseNext) };
+        var lastDone = findLastDoneExerciseState(ex.id);
+        var state = { sets: sets, raiseNext:false, raiseReminder: !!(lastDone && lastDone.raiseNext) };
         if(ex.hasMachineToggle){
           state.usingMachine = last ? !!last.usingMachine : false;
         }
